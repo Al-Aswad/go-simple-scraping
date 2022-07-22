@@ -4,61 +4,71 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
-	"strconv"
 
-	"github.com/PuerkitoBio/goquery"
+	"github.com/foolin/pagser"
 )
 
-type Article struct {
-	Title       string
-	Url         string
-	Description string
+type PageData struct {
+	Perkara      []string `pagser:"#tablePerkaraAll > tbody > tr > td:nth-child(4)"`
+	NomorPerkara []string `pagser:"#tablePerkaraAll > tbody > tr > td:nth-child(2)"`
+	Pihak        []string `pagser:"#tablePerkaraAll > tbody > tr > td:nth-child(5)"`
+	Status       []string `pagser:"#tablePerkaraAll > tbody > tr > td:nth-child(6)"`
+}
+
+type Perkara struct {
+	Perkara      string
+	NomorPerkara string
+	Pihak        string
+	Status       string
 }
 
 func main() {
 
-	for i := 1; i < 5; i++ {
+	url := "http://sipp.pn-enrekang.go.id/list_perkara"
+	res, err := http.Get(url)
 
-		// println(i)
-
-		res, err := http.Get("https://www.detik.com/search/searchall?query=teknologi&siteid=" + strconv.Itoa(i))
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		defer res.Body.Close()
-		log.Println(res.StatusCode)
-
-		if res.StatusCode != 200 {
-			log.Fatalf("Status code error: %d %s", res.StatusCode, res.Status)
-		}
-
-		doc, err := goquery.NewDocumentFromReader(res.Body)
-
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		rows := make([]Article, 0)
-
-		doc.Find(".list-berita").Children().Each(func(i int, sel *goquery.Selection) {
-			row := new(Article)
-
-			row.Title = sel.Find(".title").Text()
-			row.Url = sel.Find("a").AttrOr("href", "")
-			row.Description = sel.Find("p").Text()
-
-			rows = append(rows, *row)
-		})
-
-		bts, err := json.MarshalIndent(rows, "", " ")
-
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		log.Println(string(bts))
-
+	if err != nil {
+		log.Fatal(err)
 	}
 
+	defer res.Body.Close()
+	log.Println(res.StatusCode)
+
+	if res.StatusCode != 200 {
+		log.Fatalf("Status code error: %d %s", res.StatusCode, res.Status)
+	}
+
+	//New default config
+	p := pagser.New()
+
+	//data parser model
+	var data PageData
+	//parse html data
+	err = p.ParseReader(&data, res.Body)
+	//check error
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// fmt.Println(toJson(data.Perkara))
+
+	rows := make([]Perkara, 0)
+	row := new(Perkara)
+
+	for i := range data.Perkara {
+		row.Perkara = data.Perkara[i]
+		row.NomorPerkara = data.NomorPerkara[i]
+		row.Pihak = data.Pihak[i]
+		row.Status = data.Status[i]
+
+		rows = append(rows, *row)
+	}
+
+	log.Println("Tes", toJson(rows))
+
+}
+
+func toJson(v interface{}) string {
+	data, _ := json.MarshalIndent(v, "", "\t")
+	return string(data)
 }
